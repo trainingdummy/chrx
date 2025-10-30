@@ -915,6 +915,9 @@ do_install()
     ;;
   esac
 
+  mkdir -p /tmp/chrxroot/proc
+  mkdir -p /tmp/chrxroot/sys
+  mkdir -p /tmp/chrxroot/dev
   eval_crit mount -o bind /proc    ${CHRX_INSTALL_ROOT}/proc
   eval_crit mount -o bind /dev     ${CHRX_INSTALL_ROOT}/dev
   eval_crit mount -o bind /dev/pts ${CHRX_INSTALL_ROOT}/dev/pts
