@@ -752,7 +752,7 @@ validate_config()
 	  CHRX_OS_VERSION="17.3"
 	  CHRX_OS_ENVIRONMENT="desktop"
 	  # Point to your hosted tar.gz
-	  CHRX_OS_URL="https://archive.org/download/zorin-rootfs.tar/zorin-rootfs.tar.gz"
+	  CHRX_OS_CORE_IMAGE_URL="https://archive.org/download/zorin-rootfs.tar/zorin-rootfs.tar.gz"
 	  CHRX_OS_ROOTFS_TYPE="tgz"
 	  CHRX_CONFIGURE_GRUB_BOOT_IMG=1
       valid_envs="desktop,17.3"
