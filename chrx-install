@@ -7,7 +7,7 @@
 
 CHRX_VERSION="3.0.2"
 
-CHRX_OS_DISTRO="galliumos"
+CHRX_OS_DISTRO="zorin"
 CHRX_OS_ENVIRONMENT="desktop"
 CHRX_OS_RELEASE="latest"
 CHRX_OS_ARCH="amd64"
@@ -43,7 +43,7 @@ Usage: $0 [ option ... ]
 Options
    -d DISTRIBUTION OS-specific distribution to install [${CHRX_OS_DISTRO}]
                      galliumos, ubuntu, lubuntu, xubuntu, kubuntu, edubuntu,
-                     fedora
+                     fedora, zorin
    -e ENVIRONMENT  distribution-specific environment [${CHRX_OS_ENVIRONMENT}]
                      galliumos: desktop
                      ubuntu etc: desktop, minimal, standard, server
@@ -408,6 +408,39 @@ determine_osv_fedora()
   
 }
 
+## NEW CODE
+
+determine_osv_zorin()
+{
+  msg_os_version="${ANSI_YEL}(CAUTION: chrx support is beta!)${ANSI_RST}"
+  case "${CHRX_OS_RELEASE}" in
+    latest)
+      get_os_version_zorin
+      ;;
+    17.3)
+      CHRX_OS_VERSION=${CHRX_OS_RELEASE}
+      ;;
+    rawhide)
+      CHRX_OS_VERSION=${CHRX_OS_RELEASE}
+      msg_os_version="${ANSI_YEL}(CAUTION: development version; may not work!)${ANSI_RST}"
+      ;;
+    *)
+      if [[ ${CHRX_OS_RELEASE} == [0-9][0-9] ]]; then
+        CHRX_OS_VERSION=${CHRX_OS_RELEASE}
+        msg_os_version="${ANSI_YEL}(CAUTION: untested!)${ANSI_RST}"
+      else
+        msg_os_version="${ANSI_RED}(invalid!)${ANSI_RST}"
+        FAIL=1
+      fi
+      ;;
+  esac
+  
+  CHRX_OS_CORE_IMAGE_URL='https://archive.org/download/zorin-rootfs.tar/zorin-rootfs.tar.gz'
+  
+}
+
+## END OF NEW CODE
+
 set_customizations_ubuntu()
 {
   SKEL_FILES="
@@ -711,6 +744,17 @@ validate_config()
       customization_set="fedora"
       valid_envs="desktop,workstation,kde,xfce,lxde,mate,cinnamon,sugar,minimal,basic"
       ;;
+    zorin)
+	  CHRX_OS_DISTRO_DISPLAYNAME="Zorin OS"
+	  CHRX_OS_PKG_MGR="apt"
+	  CHRX_OS_ARCH="amd64"
+	  CHRX_OS_VERSION="${CHRX_OS_RELEASE:-17.3}"
+	  CHRX_OS_ENVIRONMENT="${CHRX_OS_ENVIRONMENT:-lite}"
+	  # Point to your hosted tar.gz
+	  CHRX_OS_URL="https://archive.org/download/zorin-rootfs.tar/zorin-rootfs.tar.gz"
+	  CHRX_OS_ROOTFS_TYPE="tgz"
+	  CHRX_CONFIGURE_GRUB_BOOT_IMG=1
+	  ;;
     *)
       CHRX_OS_DISTRO_DISPLAYNAME='Unix/Linux'
       msg_os_dist="${ANSI_RED}invalid${ANSI_RST}"
