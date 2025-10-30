@@ -49,6 +49,7 @@ Options
                      ubuntu etc: desktop, minimal, standard, server
                      fedora: desktop, workstation, kde, xfce, lxde, mate,
                        cinnamon, sugar
+                     zorin: desktop, 17.3
    -r RELEASE      distribution release number or name [${CHRX_OS_RELEASE}]
                      galliumos: latest, 3.0, bismuth, 2.0, xenon, nightly
                      ubuntu etc: latest, lts, dev, 16.04, 16.10, xenial, etc
@@ -748,12 +749,13 @@ validate_config()
 	  CHRX_OS_DISTRO_DISPLAYNAME="Zorin OS"
 	  CHRX_OS_PKG_MGR="apt"
 	  CHRX_OS_ARCH="amd64"
-	  CHRX_OS_VERSION="${CHRX_OS_RELEASE:-17.3}"
-	  CHRX_OS_ENVIRONMENT="${CHRX_OS_ENVIRONMENT:-lite}"
+	  CHRX_OS_VERSION="17.3"
+	  CHRX_OS_ENVIRONMENT="desktop"
 	  # Point to your hosted tar.gz
 	  CHRX_OS_URL="https://archive.org/download/zorin-rootfs.tar/zorin-rootfs.tar.gz"
 	  CHRX_OS_ROOTFS_TYPE="tgz"
 	  CHRX_CONFIGURE_GRUB_BOOT_IMG=1
+      valid_envs="desktop,17.3"
 	  ;;
     *)
       CHRX_OS_DISTRO_DISPLAYNAME='Unix/Linux'
