@@ -869,6 +869,13 @@ do_install()
       exit 1
     fi
     ;;
+  zorin)
+    curl -Lo - ${VERBOSITY_CURL} ${CHRX_OS_CORE_IMAGE_URL} | tar xzp -C ${CHRX_INSTALL_ROOT}
+    if [ ${PIPESTATUS[0]} -ne 0 -o ${PIPESTATUS[1]} -ne 0 ]; then
+      echo_fail "fatal: unable to download and extract core image file."
+      exit 1
+    fi
+    ;;
   fedora)
     ## There is no good source of images for all versions of fedora, so
     ## pull in a docker image and use this to install a core version
