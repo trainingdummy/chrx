@@ -1,20 +1,11 @@
 #!/bin/bash
 #
-# chrx - Chromebook Linux Installer
-# Version 4.0.0-generic
+# chrx-install
 #
-# Installation:
-#   curl https://raw.githubusercontent.com/trainingdummy/chrx/master/chrx-install | sudo tar xzfC - /usr/local && chrx
-# OR:
-#   curl -L tinyurl.com/td-chrx | sudo tar xzfC - /usr/local && chrx
-#
-# This is the main installer script that works in two modes:
-# Mode 1: First run - partitioning only
-# Mode 2: Second run - installation from tar.gz URL
+# chromebook unix installer (generic fork)
 #
 
-CHRX_VERSION="4.0.0-generic"
-CHRX_BIN_PATH="/usr/local/bin/chrx"
+CHRX_VERSION="4.0.4"
 
 # Default configuration
 CHRX_DEFAULT_ROOTFS_URL="https://tinyurl.com/chrx-zorin-17"
@@ -29,7 +20,6 @@ CHRX_ROOT_PASSWORD=""
 
 CHRX_CACHE_DIR="/var/cache/chrx"
 CHRX_INSTALL_ROOT="/tmp/chrxroot"
-CHRX_WEB_ROOT="https://chrx.org"
 
 VERBOSITY=""
 VERBOSITY_CURL="-#"
@@ -173,7 +163,7 @@ EOMENU
   echo
   echo_info "Partition size: ${CHRX_ROOTFS_SIZE_GB} GB"
   echo
-  echo_warn "Press [ENTER] to continue or CTRL+C to abort: \c"
+  echo_warn "Press [ENTER] to confirm and continue or CTRL+C to abort: \c"
   prompt_if_interactive
 }
 
@@ -321,7 +311,7 @@ Partition ${CHRX_ROOT_PARTITION} has been created and formatted.
 ${ANSI_YEL}IMPORTANT: Run this installer again to install Linux!${ANSI_RST}
 
 Run the same command:
-  ${ANSI_WHT}curl [URL] | sudo tar xzfC - /usr/local && chrx${ANSI_RST}
+  ${ANSI_WHT}curl -L https://tinyurl.com/td-chrx | sudo tar xzfC - /usr/local && chrx${ANSI_RST}
 
 EOMSG
 }
@@ -590,7 +580,7 @@ parse_opts()
          ;;
       h) 
         cat <<- EOHELP
-chrx generic installer, version ${CHRX_VERSION}
+chrx installer, version ${CHRX_VERSION}
 
 Usage: chrx [ option ... ]
 
