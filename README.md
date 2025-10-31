@@ -7,7 +7,7 @@ A fork of the original [chrx](https://chrx.org) installer, redesigned to work wi
 Install chrx and set up Linux on your Chromebook with one command, run twice:
 
 ```bash
-curl -L https://tinyurl.com/td-chrx | sudo tar xzfC - /usr/local && chrx
+curl -L tinyurl.com/td-chrx-tar | sudo tar xzfC - /usr/local && chrx
 ```
 
 ### First Run (Partition Mode)
@@ -47,7 +47,7 @@ curl -L https://tinyurl.com/td-chrx | sudo tar xzfC - /usr/local && chrx
 Simply run the command and follow the prompts:
 
 ```bash
-curl -L https://tinyurl.com/td-chrx | sudo tar xzfC - /usr/local && chrx
+curl -L https://tinyurl.com/td-chrx-tar | sudo tar xzfC - /usr/local && chrx
 ```
 
 The installer will guide you through:
@@ -86,7 +86,7 @@ chrx -u https://example.com/my-distro.tar.gz -H mycomputer -U myuser -P mypasswo
 
 ## 🎨 Supported Distributions
 
-chrx-generic works with **any** Linux distribution that provides a rootfs tarball. Popular options include:
+This version of chrx (hypothetically) works with **any** Linux distribution that provides a rootfs tarball. Popular options include:
 
 - **Arch Linux**: https://mirrors.kernel.org/archlinux/iso/latest/
 - **Ubuntu**: https://cdimage.ubuntu.com/ubuntu-base/
@@ -98,7 +98,7 @@ chrx-generic works with **any** Linux distribution that provides a rootfs tarbal
 
 ### Default Distribution
 
-By default, chrx-generic installs **Zorin OS 17 Core**:
+By default, chrx-generic installs **Zorin OS 17.3 Core**:
 - URL: https://tinyurl.com/chrx-zorin-17
 - Size: ~2.5 GB download
 - Features: Ubuntu-based, Windows-like interface, beginner-friendly
@@ -230,8 +230,8 @@ sudo grub-mkconfig -o /boot/grub/grub.cfg  # Others
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/YOUR-USERNAME/chrx-generic.git
-   cd chrx-generic
+   git clone https://github.com/trainingdummy/chrx.git
+   cd chrx
    ```
 
 2. Make your changes to the `chrx` script
