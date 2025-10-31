@@ -6,7 +6,7 @@
 # Installation:
 #   curl https://raw.githubusercontent.com/trainingdummy/chrx/master/chrx-install | sudo tar xzfC - /usr/local && chrx
 # OR:
-#   curl -L tinyurl.com/td-chrx | sudo tar xzfC - /urs/local && chrx
+#   curl -L tinyurl.com/td-chrx | sudo tar xzfC - /usr/local && chrx
 #
 # This is the main installer script that works in two modes:
 # Mode 1: First run - partitioning only
