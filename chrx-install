@@ -2,7 +2,7 @@
 #
 # chrx-install
 #
-# chromebook unix installer (generic fork)
+# Chromebook Unix Installer
 #
 
 CHRX_VERSION="4.0.4"
