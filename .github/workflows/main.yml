@@ -1,0 +1,45 @@
+name: Build chrx distribution
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'chrx-install'
+      - 'chrx-devices'
+      - 'build.sh'
+  workflow_dispatch:  # Allows manual trigger from Actions tab
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Make build script executable
+        run: chmod +x build.sh
+      
+      - name: Run build script
+        run: ./build.sh
+      
+      - name: Check if dist.tar.gz changed
+        id: check_changes
+        run: |
+          if git diff --quiet dist.tar.gz; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Commit and push if changed
+        if: steps.check_changes.outputs.changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add dist.tar.gz
+          git commit -m "Auto-build: Update dist.tar.gz [skip ci]"
+          git push
