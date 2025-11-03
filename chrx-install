@@ -126,7 +126,7 @@ ${ANSI_GRN}
 ╔═══════════════════════════════════════════════════════════════╗
 ║                                                               ║
 ║        chrx - Generic Chromebook Linux Installer              ║
-║                    Version ${CHRX_VERSION}                     ║
+║                        Version ${CHRX_VERSION}                          ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
 ${ANSI_RST}
