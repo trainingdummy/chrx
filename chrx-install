@@ -16,7 +16,7 @@ CHRX_HOSTNAME="chrx"
 CHRX_USERNAME="chrx"
 CHRX_LOCALE="en_US.UTF-8"
 CHRX_TZ="America/New_York"
-CHRX_ROOT_PASSWORD=""
+CHRX_ROOT_PASSWORD="chrx"
 
 CHRX_CACHE_DIR="/var/cache/chrx"
 CHRX_INSTALL_ROOT="/mnt/stateful_partition/chrxroot"
