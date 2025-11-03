@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# chrx-install
+# chrx-install (modified to source alternate setup_storage)
 #
 # Chromebook Unix Installer
 #
@@ -28,6 +28,9 @@ VERBOSITY_INSTALL=""
 CHRX_PROMPT_ENABLED=1
 CHRX_NOTIFY_ENABLED=1
 CHRX_MODE=""
+
+# User agent for curl (optional)
+CHRX_UA="chrx-installer/1.0"
 
 # Color codes
 ANSI_RED=$'\033[1;31m'
@@ -80,9 +83,11 @@ downcase() { echo "$@" | tr '[:upper:]' '[:lower:]'; }
 
 detect_mode()
 {
+  # Check if partition 7 exists on the root device
   local rootdev=$(rootdev -d -s 2>/dev/null)
   
   if [ -z "$rootdev" ]; then
+    # Not on ChromeOS, try to detect anyway
     if [ -b /dev/mmcblk0 ]; then
       rootdev="/dev/mmcblk0"
     elif [ -b /dev/nvme0n1 ]; then
@@ -95,13 +100,16 @@ detect_mode()
     fi
   fi
   
+  # Determine partition naming scheme
   if [[ "${rootdev}" =~ "mmcblk" ]] || [[ "${rootdev}" =~ "nvme" ]]; then
     local part7="${rootdev}p7"
   else
     local part7="${rootdev}7"
   fi
   
+  # Check if partition 7 exists AND has a filesystem
   if [ -b "$part7" ]; then
+    # Check if it has a valid filesystem (ext4 with CHRX-ROOT label)
     local fs_label=$(blkid -s LABEL -o value "$part7" 2>/dev/null)
     if [ "$fs_label" = "CHRX-ROOT" ]; then
       CHRX_MODE="install"
@@ -121,7 +129,7 @@ ${ANSI_GRN}
 ╔═══════════════════════════════════════════════════════════════╗
 ║                                                               ║
 ║         chrx - Generic Chromebook Linux Installer             ║
-║                      Version ${CHRX_VERSION}                            ║
+║                        Version ${CHRX_VERSION}                          ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
 ${ANSI_RST}
@@ -134,7 +142,7 @@ show_partition_mode_menu()
   cat <<- EOMENU
 
 ${ANSI_YEL}═══════════════════════════════════════════════════════════════${ANSI_RST}
-${ANSI_YEL}                    PARTITION MODE                            ${ANSI_RST}
+${ANSI_YEL}                     PARTITION MODE                            ${ANSI_RST}
 ${ANSI_YEL}═══════════════════════════════════════════════════════════════${ANSI_RST}
 
 This is your first time running chrx. We need to create a partition
@@ -152,6 +160,7 @@ EOMENU
   prompt_if_interactive
   CHRX_ROOTFS_SIZE_GB=${PROMPT_RESPONSE:-16}
   
+  # Validate input
   if ! [[ "$CHRX_ROOTFS_SIZE_GB" =~ ^[0-9]+$ ]]; then
     echo_fail "Invalid size. Please enter a number."
     exit 1
@@ -161,6 +170,12 @@ EOMENU
     echo_fail "Size too small. Minimum 8 GB required."
     exit 1
   fi
+  
+  echo
+  echo_info "Partition size: ${CHRX_ROOTFS_SIZE_GB} GB"
+  echo
+  echo_warn "Press [ENTER] to confirm and continue or CTRL+C to abort: \c"
+  prompt_if_interactive
 }
 
 show_install_mode_menu()
@@ -168,7 +183,7 @@ show_install_mode_menu()
   cat <<- EOMENU
 
 ${ANSI_GRN}═══════════════════════════════════════════════════════════════${ANSI_RST}
-${ANSI_GRN}                    INSTALLATION MODE                         ${ANSI_RST}
+${ANSI_GRN}                     INSTALLATION MODE                         ${ANSI_RST}
 ${ANSI_GRN}═══════════════════════════════════════════════════════════════${ANSI_RST}
 
 Partition detected! Ready to install Linux.
@@ -224,6 +239,8 @@ EOMENU
 validate_url()
 {
   echo_info "\nValidating download URL..."
+  
+  # Follow redirects and check if URL is accessible
   local response=$(curl -s -I -L -w "%{http_code}" "${CHRX_ROOTFS_URL}" -o /dev/null)
   
   if [ "$response" != "200" ]; then
@@ -231,16 +248,28 @@ validate_url()
     echo_fail "HTTP response code: ${response}"
     exit 1
   fi
+  
   echo_info "URL is accessible."
 }
 
-# Replaces all repartitioning logic with the alternate remote setup script
+# setup_storage: source the alternate setup script (use local uploaded copy if present,
+# otherwise fetch from your GitHub raw URL). The sourced file is expected to set
+# SETUP_STORAGE_ERROR="" on success (same behavior as original).
 setup_storage()
 {
   SETUP_STORAGE_ERROR="failed"
 
-  curl -fsSL -A "${CHRX_UA}" https://raw.githubusercontent.com/trainingdummy/chrx/refs/heads/master/chrx-setup-storage -o /usr/local/bin/chrx-setup-storage
-  [ -r /usr/local/bin/chrx-setup-storage ] && . /usr/local/bin/chrx-setup-storage
+  # Prefer a local uploaded copy if present (useful for testing)
+  if [ -r /mnt/data/chrx-setup-storage.txt ]; then
+    . /mnt/data/chrx-setup-storage.txt
+  else
+    # Fallback to fetching from GitHub raw URL and sourcing it
+    ALT_URL="https://raw.githubusercontent.com/trainingdummy/chrx/refs/heads/master/chrx-setup-storage"
+    ALT_PATH="/usr/local/bin/chrx-setup-storage"
+
+    curl -fsSL -A "${CHRX_UA}" "${ALT_URL}" -o "${ALT_PATH}"
+    [ -r "${ALT_PATH}" ] && . "${ALT_PATH}"
+  fi
 
   if [ "${SETUP_STORAGE_ERROR}" ]; then
     echo_fail "fatal error from chrx-setup-storage. exiting!"
@@ -248,7 +277,48 @@ setup_storage()
   fi
 }
 
-# Everything else below remains the same
+setup_storage_install_mode()
+{
+  echo_info "\n${ANSI_GRN}Preparing installation...${ANSI_RST}"
+  
+  # Determine target disk and partition
+  CHRX_TARGET_DISK=$(rootdev -d -s 2>/dev/null)
+  
+  if [ -z "${CHRX_TARGET_DISK}" ]; then
+    if [ -b /dev/mmcblk0 ]; then
+      CHRX_TARGET_DISK="/dev/mmcblk0"
+    elif [ -b /dev/nvme0n1 ]; then
+      CHRX_TARGET_DISK="/dev/nvme0n1"
+    elif [ -b /dev/sda ]; then
+      CHRX_TARGET_DISK="/dev/sda"
+    else
+      echo_fail "Unable to detect internal storage device"
+      exit 1
+    fi
+  fi
+  
+  # Determine partition naming scheme
+  if [[ "${CHRX_TARGET_DISK}" =~ "mmcblk" ]] || [[ "${CHRX_TARGET_DISK}" =~ "nvme" ]]; then
+    CHRX_ROOT_PARTITION="${CHRX_TARGET_DISK}p7"
+  else
+    CHRX_ROOT_PARTITION="${CHRX_TARGET_DISK}7"
+  fi
+  
+  if [ ! -b "${CHRX_ROOT_PARTITION}" ]; then
+    echo_fail "Partition ${CHRX_ROOT_PARTITION} not found!"
+    echo_fail "Please run chrx in partition mode first."
+    exit 1
+  fi
+  
+  echo_info "Target partition: ${CHRX_ROOT_PARTITION}"
+  
+  # Mount the partition
+  mkdir -p ${CHRX_INSTALL_ROOT}
+  eval_crit "mount ${CHRX_ROOT_PARTITION} ${CHRX_INSTALL_ROOT}"
+  
+  echo_info "Partition mounted at ${CHRX_INSTALL_ROOT}"
+}
+
 do_install()
 {
   start_date=$(date)
@@ -258,16 +328,314 @@ do_install()
   echo_info "This may take several minutes depending on file size."
   echo
 
+  # Download and extract in one pass
   curl -L ${VERBOSITY_CURL} "${CHRX_ROOTFS_URL}" | tar xzp -C ${CHRX_INSTALL_ROOT}
   
   if [ ${PIPESTATUS[0]} -ne 0 ] || [ ${PIPESTATUS[1]} -ne 0 ]; then
     echo_fail "Fatal: unable to download and extract rootfs archive."
     exit 1
   fi
-
+  
   echo_info "Rootfs extracted successfully!"
-  # [rest of installation process remains unchanged...]
+
+  # Mount necessary filesystems
+  echo_info "Setting up chroot environment..."
+  eval_crit "mount -o bind /proc    ${CHRX_INSTALL_ROOT}/proc"
+  eval_crit "mount -o bind /dev     ${CHRX_INSTALL_ROOT}/dev"
+  eval_crit "mount -o bind /dev/pts ${CHRX_INSTALL_ROOT}/dev/pts"
+  eval_crit "mount -o bind /sys     ${CHRX_INSTALL_ROOT}/sys"
+  eval_crit "mount -o bind /run     ${CHRX_INSTALL_ROOT}/run"
+
+  # Copy cgpt if available
+  if [ -f /usr/bin/old_bins/cgpt ]; then
+    mkdir -p ${CHRX_INSTALL_ROOT}/usr/bin
+    cp /usr/bin/old_bins/cgpt ${CHRX_INSTALL_ROOT}/usr/bin/
+    chmod a+rx ${CHRX_INSTALL_ROOT}/usr/bin/cgpt
+  elif [ -f /usr/bin/cgpt ]; then
+    mkdir -p ${CHRX_INSTALL_ROOT}/usr/bin
+    cp /usr/bin/cgpt ${CHRX_INSTALL_ROOT}/usr/bin/
+    chmod a+rx ${CHRX_INSTALL_ROOT}/usr/bin/cgpt
+  fi
+
+  # Setup networking
+  mkdir -p ${CHRX_INSTALL_ROOT}/run/resolvconf
+  mkdir -p ${CHRX_INSTALL_ROOT}/run/systemd/resolve
+  cat /etc/resolv.conf > ${CHRX_INSTALL_ROOT}/etc/resolv.conf 2>/dev/null || true
+
+  # Configure hostname
+  echo_info "Configuring system..."
+  echo ${CHRX_HOSTNAME} > ${CHRX_INSTALL_ROOT}/etc/hostname
+  
+  if [ -f ${CHRX_INSTALL_ROOT}/etc/hosts ]; then
+    echo -e "\n127.0.1.1       ${CHRX_HOSTNAME}" >> ${CHRX_INSTALL_ROOT}/etc/hosts
+  else
+    cat > ${CHRX_INSTALL_ROOT}/etc/hosts <<EOF
+127.0.0.1       localhost
+127.0.1.1       ${CHRX_HOSTNAME}
+::1             localhost ip6-localhost ip6-loopback
+EOF
+  fi
+
+  # Configure fstab
+  cat > ${CHRX_INSTALL_ROOT}/etc/fstab <<EOF
+# /etc/fstab: static file system information
+${CHRX_ROOT_PARTITION}  /          ext4    defaults,relatime  0  1
+proc                    /proc      proc    defaults           0  0
+sysfs                   /sys       sysfs   defaults           0  0
+devpts                  /dev/pts   devpts  defaults           0  0
+tmpfs                   /tmp       tmpfs   defaults           0  0
+EOF
+
+  # Set timezone
+  if [ -f ${CHRX_INSTALL_ROOT}/usr/share/zoneinfo/${CHRX_TZ} ]; then
+    chroot ${CHRX_INSTALL_ROOT} /bin/bash -c "ln -sf /usr/share/zoneinfo/${CHRX_TZ} /etc/localtime" 2>/dev/null || true
+  fi
+
+  # Set locale
+  if [ -f ${CHRX_INSTALL_ROOT}/usr/sbin/locale-gen ]; then
+    echo "${CHRX_LOCALE} UTF-8" > ${CHRX_INSTALL_ROOT}/etc/locale.gen
+    chroot ${CHRX_INSTALL_ROOT} /bin/bash -c "locale-gen" 2>/dev/null || true
+  fi
+  if [ -f ${CHRX_INSTALL_ROOT}/etc/locale.conf ] || [ -d ${CHRX_INSTALL_ROOT}/etc ]; then
+    echo "LANG=${CHRX_LOCALE}" > ${CHRX_INSTALL_ROOT}/etc/locale.conf
+  fi
+
+  # Create user
+  if [ -f ${CHRX_INSTALL_ROOT}/usr/sbin/useradd ]; then
+    echo_info "Creating user: ${CHRX_USERNAME}"
+    chroot ${CHRX_INSTALL_ROOT} /bin/bash -c "useradd -m -s /bin/bash ${CHRX_USERNAME}" 2>/dev/null || true
+    chroot ${CHRX_INSTALL_ROOT} /bin/bash -c "echo '${CHRX_USERNAME}:${CHRX_USERNAME}' | chpasswd" 2>/dev/null || true
+    
+    # Add to groups
+    for group in wheel sudo audio video users netdev plugdev; do
+      if grep -q "^${group}:" ${CHRX_INSTALL_ROOT}/etc/group 2>/dev/null; then
+        chroot ${CHRX_INSTALL_ROOT} /bin/bash -c "usermod -aG ${group} ${CHRX_USERNAME}" 2>/dev/null || true
+      fi
+    done
+  fi
+
+  # Set root password
+  if [ -n "${CHRX_ROOT_PASSWORD}" ]; then
+    echo_info "Setting root password..."
+    chroot ${CHRX_INSTALL_ROOT} /bin/bash -c "echo 'root:${CHRX_ROOT_PASSWORD}' | chpasswd" 2>/dev/null || true
+  fi
+
+  # Install and configure GRUB
+  echo_info "Installing GRUB bootloader..."
+  install_grub
+
+  # Enable legacy boot
+  if command -v crossystem >/dev/null 2>&1; then
+    crossystem dev_boot_legacy=1 2>/dev/null || true
+  fi
+
+  # Cleanup
+  echo_info "Cleaning up..."
+  sync
+  umount ${CHRX_INSTALL_ROOT}/proc 2>/dev/null || true
+  umount ${CHRX_INSTALL_ROOT}/dev/pts 2>/dev/null || true
+  umount ${CHRX_INSTALL_ROOT}/dev 2>/dev/null || true
+  umount ${CHRX_INSTALL_ROOT}/sys 2>/dev/null || true
+  umount ${CHRX_INSTALL_ROOT}/run 2>/dev/null || true
+  umount ${CHRX_INSTALL_ROOT} 2>/dev/null || true
+
+  finish_date=$(date)
+  finish_secs=$(date +%s)
+  elapsed_time=$(( (${finish_secs}-${start_secs})/60 ))m$(( (${finish_secs}-${start_secs})%60 ))s
+
+  show_completion_banner
 }
 
-# (Remaining functions unchanged: install_grub, show_completion_banner, parse_opts, main)
-# ...
+install_grub()
+{
+  # Check if grub is available in the rootfs
+  if [ ! -f ${CHRX_INSTALL_ROOT}/usr/sbin/grub-install ] && [ ! -f ${CHRX_INSTALL_ROOT}/sbin/grub-install ]; then
+    echo_warn "GRUB not found in rootfs. You'll need to install it manually."
+    return
+  fi
+
+  # Install GRUB to MBR
+  echo_info "Installing GRUB to ${CHRX_TARGET_DISK}..."
+  
+  chroot ${CHRX_INSTALL_ROOT} /bin/bash -c "grub-install --boot-directory=/boot ${CHRX_TARGET_DISK} --force" 2>/dev/null || {
+    echo_warn "GRUB installation failed. You may need to install it manually."
+    return
+  }
+
+  # Generate GRUB config
+  if [ -f ${CHRX_INSTALL_ROOT}/usr/sbin/grub-mkconfig ]; then
+    echo_info "Generating GRUB configuration..."
+    chroot ${CHRX_INSTALL_ROOT} /bin/bash -c "grub-mkconfig -o /boot/grub/grub.cfg" 2>/dev/null || {
+      echo_warn "GRUB config generation failed. You may need to configure it manually."
+    }
+  elif [ -f ${CHRX_INSTALL_ROOT}/usr/sbin/update-grub ]; then
+    chroot ${CHRX_INSTALL_ROOT} /bin/bash -c "update-grub" 2>/dev/null || {
+      echo_warn "GRUB config generation failed. You may need to configure it manually."
+    }
+  fi
+  
+  echo_info "GRUB installation complete."
+}
+
+show_completion_banner()
+{
+  cat <<- EOMSG
+
+${ANSI_GRN}
+╔═══════════════════════════════════════════════════════════════╗
+║                                                               ║
+║               Installation Complete!                          ║
+║                                                               ║
+╚═══════════════════════════════════════════════════════════════╝
+${ANSI_RST}
+
+     Started:  ${start_date}
+    Finished:  ${finish_date}
+     Elapsed:  ${elapsed_time}
+
+${ANSI_YEL}═══════════════════════════════════════════════════════════════${ANSI_RST}
+
+After reboot, at the white "OS verification is OFF" screen:
+
+  ${ANSI_YEL}Press CTRL-D${ANSI_RST} to boot ChromeOS
+  ${ANSI_GRN}Press CTRL-L${ANSI_RST} to boot your new Linux installation
+
+${ANSI_YEL}═══════════════════════════════════════════════════════════════${ANSI_RST}
+
+Default login credentials:
+
+  Username: ${ANSI_WHT}${CHRX_USERNAME}${ANSI_RST}
+  Password: ${ANSI_WHT}${CHRX_USERNAME}${ANSI_RST}
+
+${ANSI_RED}IMPORTANT: Change your password after first login!${ANSI_RST}
+
+${ANSI_YEL}═══════════════════════════════════════════════════════════════${ANSI_RST}
+
+Note: Some distributions may require additional configuration:
+  - Network setup
+  - Graphics drivers
+  - Additional firmware
+
+${ANSI_YEL}═══════════════════════════════════════════════════════════════${ANSI_RST}
+
+EOMSG
+}
+
+parse_opts()
+{
+  while getopts ":u:s:t:H:U:P:L:Z:yvh" OPTION
+  do
+    case "$OPTION" in
+      u) CHRX_ROOTFS_URL=$OPTARG ;;
+      s) CHRX_ROOTFS_SIZE_GB=$OPTARG ;;
+      t) CHRX_TARGET_DISK=$OPTARG ;;
+      H) CHRX_HOSTNAME=$OPTARG ;;
+      U) CHRX_USERNAME=$OPTARG ;;
+      P) CHRX_ROOT_PASSWORD=$OPTARG ;;
+      L) CHRX_LOCALE=$OPTARG ;;
+      Z) CHRX_TZ=$OPTARG ;;
+      y) CHRX_PROMPT_ENABLED= ;;
+      v) VERBOSITY="v"
+         VERBOSITY_CURL=""
+         VERBOSITY_INSTALL="-v"
+         ;;
+      h) 
+        cat <<- EOHELP
+chrx installer, version ${CHRX_VERSION}
+
+Usage: chrx [ option ... ]
+
+Options:
+  -u URL          Direct download URL to tar.gz rootfs (install mode only)
+  -s SIZE         Size in GB for Linux partition (partition mode only)
+  -t TARGETDISK   Target disk (/dev/mmcblk1, /dev/sdb, etc)
+  -H HOSTNAME     Hostname for new system
+  -U USERNAME     Username of first user
+  -P PASSWORD     Root password
+  -L LOCALE       Locale for new system
+  -Z TIMEZONE     Timezone (e.g., America/New_York)
+  -y              Non-interactive mode
+  -v              Verbose output
+  -h              Show this help
+
+The installer runs in two modes:
+  1. First run: Creates partition (or use -s to specify size)
+  2. Second run: Installs Linux (or use -u to specify URL)
+
+Default rootfs: ${CHRX_DEFAULT_ROOTFS_URL}
+
+EOHELP
+        exit 0
+        ;;
+      '?')
+         [ "$OPTARG" = "?" ] && exit 0
+         echo_fail "Unrecognized option: '-${OPTARG}'" ; exit 1 ;;
+    esac
+  done
+}
+
+main()
+{
+  parse_opts "$@"
+  
+  show_welcome_banner
+  
+  # Detect which mode to run in
+  detect_mode
+  
+  if [ "$CHRX_MODE" = "partition" ]; then
+    # Mode 1: Partitioning
+    if [ -z "$CHRX_ROOTFS_SIZE_GB" ]; then
+      show_partition_mode_menu
+    fi
+    # Call the setup_storage function which sources the alternate script
+    setup_storage
+  else
+    # Mode 2: Installation
+    if [ -z "$CHRX_ROOTFS_URL" ]; then
+      show_install_mode_menu
+    fi
+    
+    # Validate URL
+    validate_url
+    
+    # Setup storage for installation mode (mount partition etc.)
+    setup_storage_install_mode
+    
+    # Confirm before installing
+    cat <<- EOCONFIRM
+
+${ANSI_YEL}═══════════════════════════════════════════════════════════════${ANSI_RST}
+                    Installation Summary
+${ANSI_YEL}═══════════════════════════════════════════════════════════════${ANSI_RST}
+
+  Download URL: ${CHRX_ROOTFS_URL}
+  Target disk:  ${CHRX_TARGET_DISK}
+  Partition:    ${CHRX_ROOT_PARTITION}
+  Hostname:     ${CHRX_HOSTNAME}
+  Username:     ${CHRX_USERNAME}
+  Timezone:     ${CHRX_TZ}
+  Locale:       ${CHRX_LOCALE}
+
+${ANSI_RED}This will erase any existing data on ${CHRX_ROOT_PARTITION}!${ANSI_RST}
+
+EOCONFIRM
+
+    echo_warn "Press [ENTER] to continue or CTRL+C to abort: \c"
+    prompt_if_interactive
+    
+    # Perform installation
+    do_install
+    
+    # Prompt for reboot
+    echo_note "\nPress [ENTER] to reboot: \c"
+    prompt_if_interactive
+    
+    if [ -z "$CHRX_NO_REBOOT" ]; then
+      reboot
+      sleep 10
+    fi
+  fi
+}
+
+main "$@"
