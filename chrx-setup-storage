@@ -58,7 +58,7 @@ else
   state_size="`cgpt show -i 1 -n -s -q ${CHRX_TARGET_DISK}`"
 
   max_os_size=$((${state_size}/1024/1024/2))
-  rec_os_size=$((${max_os_size} - 1))
+  rec_os_size=$((${max_os_size} - 10))
   # If KERN-C and ROOT-C are one, we partition, otherwise assume they're what they need to be...
   if [ "${ckern_size}" = "1" -o "${croot_size}" = "1" ]; then
     while :
