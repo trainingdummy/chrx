@@ -53,6 +53,11 @@ echo "Copying chrx-install script..."
 cp chrx-install "$DIST_DIR/bin/chrx"
 chmod +x "$DIST_DIR/bin/chrx"
 
+# Copy repartitioning script
+echo "Copying chrx-install script..."
+cp chrx-setup-storage "$DIST_DIR/bin/chrx"
+chmod +x "$DIST_DIR/bin/chrx"
+
 # Copy optional files if they exist
 if [ -f "chrx-devices" ]; then
     echo "Copying chrx-devices database..."
@@ -91,7 +96,7 @@ echo "1. Upload dist.tar.gz to your GitHub repository"
 echo ""
 echo "2. Share this installation command with users:"
 echo ""
-echo -e "${YELLOW}curl -L https://tinyurl.com/td-chrx | sudo tar xzfC - /usr/local && chrx${NC}"
+echo -e "${YELLOW}curl -L https://tinyurl.com/td-chrx-tar | sudo tar xzfC - /usr/local && chrx${NC}"
 echo ""
 echo "3. Users run the same command twice:"
 echo "   - First run: Creates partition"
