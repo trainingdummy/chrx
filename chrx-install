@@ -2,10 +2,10 @@
 #
 # chrx-install
 #
-# chromebook unix installer (generic fork)
+# Chromebook Unix Installer
 #
 
-CHRX_VERSION="4.0.0-generic"
+CHRX_VERSION="4.0.4"
 
 # Default configuration
 CHRX_DEFAULT_ROOTFS_URL="https://tinyurl.com/chrx-zorin-17"
