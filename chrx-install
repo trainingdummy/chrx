@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# chrx-install (modified to source alternate setup_storage)
+# chrx-install
 #
 # Chromebook Unix Installer
 #
@@ -85,7 +85,7 @@ detect_mode()
 {
   # Check if partition 7 exists on the root device
   local rootdev=$(rootdev -d -s 2>/dev/null)
-  
+
   if [ -z "$rootdev" ]; then
     # Not on ChromeOS, try to detect anyway
     if [ -b /dev/mmcblk0 ]; then
@@ -99,14 +99,14 @@ detect_mode()
       exit 1
     fi
   fi
-  
+
   # Determine partition naming scheme
   if [[ "${rootdev}" =~ "mmcblk" ]] || [[ "${rootdev}" =~ "nvme" ]]; then
     local part7="${rootdev}p7"
   else
     local part7="${rootdev}7"
   fi
-  
+
   # Check if partition 7 exists AND has a filesystem
   if [ -b "$part7" ]; then
     # Check if it has a valid filesystem (ext4 with CHRX-ROOT label)
@@ -115,7 +115,7 @@ detect_mode()
       CHRX_MODE="install"
     else
       CHRX_MODE="partition"
-      echo_warn "Partition 7 exists but appears incomplete. Will recreate it."
+      echo_warn "Partition 7 exists but hasn't been adjusted yet. Initiating repartitioning script."
     fi
   else
     CHRX_MODE="partition"
@@ -137,6 +137,18 @@ ${ANSI_RST}
 EOBANNER
 }
 
+setup_storage()
+{
+  SETUP_STORAGE_ERROR="failed"
+
+  . /usr/local/bin/chrx-setup-storage
+
+  if [ "${SETUP_STORAGE_ERROR}" ]; then
+    echo_fail "fatal error from chrx-setup-storage. exiting!"
+    exit 1
+  fi
+}
+
 show_partition_mode_menu()
 {
   cat <<- EOMENU
@@ -156,21 +168,21 @@ EOMENU
   echo_prompt "How much space do you want for Linux? (in GB)"
   echo_note "Recommended: 16-32 GB for most distros, 64+ GB for desktop use"
   echo_prompt "Enter size in GB [default: 16]: \c"
-  
+
   prompt_if_interactive
   CHRX_ROOTFS_SIZE_GB=${PROMPT_RESPONSE:-16}
-  
+
   # Validate input
   if ! [[ "$CHRX_ROOTFS_SIZE_GB" =~ ^[0-9]+$ ]]; then
     echo_fail "Invalid size. Please enter a number."
     exit 1
   fi
-  
+
   if [ "$CHRX_ROOTFS_SIZE_GB" -lt 8 ]; then
     echo_fail "Size too small. Minimum 8 GB required."
     exit 1
   fi
-  
+
   echo
   echo_info "Partition size: ${CHRX_ROOTFS_SIZE_GB} GB"
   echo
@@ -193,43 +205,43 @@ EOMENU
   echo_prompt "Enter the URL to your Linux rootfs tar.gz file:"
   echo_note "Press [ENTER] for default: ${CHRX_DEFAULT_ROOTFS_URL}"
   echo_prompt "URL: \c"
-  
+
   prompt_if_interactive
   CHRX_ROOTFS_URL=${PROMPT_RESPONSE:-$CHRX_DEFAULT_ROOTFS_URL}
-  
+
   echo
   echo_info "Download URL: ${CHRX_ROOTFS_URL}"
   echo
-  
+
   echo_prompt "Hostname [default: chrx]: \c"
   prompt_if_interactive
   CHRX_HOSTNAME=${PROMPT_RESPONSE:-chrx}
-  
+
   echo_prompt "Username [default: chrx]: \c"
   prompt_if_interactive
   CHRX_USERNAME=${PROMPT_RESPONSE:-chrx}
-  
+
   echo_prompt "Timezone [default: America/New_York]: \c"
   prompt_if_interactive
   CHRX_TZ=${PROMPT_RESPONSE:-America/New_York}
-  
+
   echo_prompt "Locale [default: en_US.UTF-8]: \c"
   prompt_if_interactive
   CHRX_LOCALE=${PROMPT_RESPONSE:-en_US.UTF-8}
-  
+
   echo
-  echo_prompt "Enter root password: "
+  echo_prompt "Enter root password [default: chrx]: "
   read -s CHRX_ROOT_PASSWORD
   echo
   echo_prompt "Confirm root password: "
   read -s CHRX_ROOT_PASSWORD_CONFIRM
   echo
-  
+
   if [ "${CHRX_ROOT_PASSWORD}" != "${CHRX_ROOT_PASSWORD_CONFIRM}" ]; then
     echo_fail "Passwords do not match!"
     exit 1
   fi
-  
+
   if [ -z "${CHRX_ROOT_PASSWORD}" ]; then
     echo_fail "Password cannot be empty!"
     exit 1
@@ -239,51 +251,26 @@ EOMENU
 validate_url()
 {
   echo_info "\nValidating download URL..."
-  
+
   # Follow redirects and check if URL is accessible
   local response=$(curl -s -I -L -w "%{http_code}" "${CHRX_ROOTFS_URL}" -o /dev/null)
-  
+
   if [ "$response" != "200" ]; then
     echo_fail "Unable to access URL: ${CHRX_ROOTFS_URL}"
     echo_fail "HTTP response code: ${response}"
     exit 1
   fi
-  
+
   echo_info "URL is accessible."
-}
-
-# setup_storage: source the alternate setup script (use local uploaded copy if present,
-# otherwise fetch from your GitHub raw URL). The sourced file is expected to set
-# SETUP_STORAGE_ERROR="" on success (same behavior as original).
-setup_storage()
-{
-  SETUP_STORAGE_ERROR="failed"
-
-  # Prefer a local uploaded copy if present (useful for testing)
-  if [ -r /mnt/data/chrx-setup-storage.txt ]; then
-    . /mnt/data/chrx-setup-storage.txt
-  else
-    # Fallback to fetching from GitHub raw URL and sourcing it
-    ALT_URL="https://raw.githubusercontent.com/trainingdummy/chrx/refs/heads/master/chrx-setup-storage"
-    ALT_PATH="/usr/local/bin/chrx-setup-storage"
-
-    curl -fsSL -A "${CHRX_UA}" "${ALT_URL}" -o "${ALT_PATH}"
-    [ -r "${ALT_PATH}" ] && . "${ALT_PATH}"
-  fi
-
-  if [ "${SETUP_STORAGE_ERROR}" ]; then
-    echo_fail "fatal error from chrx-setup-storage. exiting!"
-    exit 1
-  fi
 }
 
 setup_storage_install_mode()
 {
   echo_info "\n${ANSI_GRN}Preparing installation...${ANSI_RST}"
-  
+
   # Determine target disk and partition
   CHRX_TARGET_DISK=$(rootdev -d -s 2>/dev/null)
-  
+
   if [ -z "${CHRX_TARGET_DISK}" ]; then
     if [ -b /dev/mmcblk0 ]; then
       CHRX_TARGET_DISK="/dev/mmcblk0"
@@ -296,26 +283,26 @@ setup_storage_install_mode()
       exit 1
     fi
   fi
-  
+
   # Determine partition naming scheme
   if [[ "${CHRX_TARGET_DISK}" =~ "mmcblk" ]] || [[ "${CHRX_TARGET_DISK}" =~ "nvme" ]]; then
     CHRX_ROOT_PARTITION="${CHRX_TARGET_DISK}p7"
   else
     CHRX_ROOT_PARTITION="${CHRX_TARGET_DISK}7"
   fi
-  
+
   if [ ! -b "${CHRX_ROOT_PARTITION}" ]; then
     echo_fail "Partition ${CHRX_ROOT_PARTITION} not found!"
     echo_fail "Please run chrx in partition mode first."
     exit 1
   fi
-  
+
   echo_info "Target partition: ${CHRX_ROOT_PARTITION}"
-  
+
   # Mount the partition
   mkdir -p ${CHRX_INSTALL_ROOT}
   eval_crit "mount ${CHRX_ROOT_PARTITION} ${CHRX_INSTALL_ROOT}"
-  
+
   echo_info "Partition mounted at ${CHRX_INSTALL_ROOT}"
 }
 
@@ -330,12 +317,12 @@ do_install()
 
   # Download and extract in one pass
   curl -L ${VERBOSITY_CURL} "${CHRX_ROOTFS_URL}" | tar xzp -C ${CHRX_INSTALL_ROOT}
-  
+
   if [ ${PIPESTATUS[0]} -ne 0 ] || [ ${PIPESTATUS[1]} -ne 0 ]; then
     echo_fail "Fatal: unable to download and extract rootfs archive."
     exit 1
   fi
-  
+
   echo_info "Rootfs extracted successfully!"
 
   # Mount necessary filesystems
@@ -365,7 +352,7 @@ do_install()
   # Configure hostname
   echo_info "Configuring system..."
   echo ${CHRX_HOSTNAME} > ${CHRX_INSTALL_ROOT}/etc/hostname
-  
+
   if [ -f ${CHRX_INSTALL_ROOT}/etc/hosts ]; then
     echo -e "\n127.0.1.1       ${CHRX_HOSTNAME}" >> ${CHRX_INSTALL_ROOT}/etc/hosts
   else
@@ -405,7 +392,7 @@ EOF
     echo_info "Creating user: ${CHRX_USERNAME}"
     chroot ${CHRX_INSTALL_ROOT} /bin/bash -c "useradd -m -s /bin/bash ${CHRX_USERNAME}" 2>/dev/null || true
     chroot ${CHRX_INSTALL_ROOT} /bin/bash -c "echo '${CHRX_USERNAME}:${CHRX_USERNAME}' | chpasswd" 2>/dev/null || true
-    
+
     # Add to groups
     for group in wheel sudo audio video users netdev plugdev; do
       if grep -q "^${group}:" ${CHRX_INSTALL_ROOT}/etc/group 2>/dev/null; then
@@ -456,7 +443,7 @@ install_grub()
 
   # Install GRUB to MBR
   echo_info "Installing GRUB to ${CHRX_TARGET_DISK}..."
-  
+
   chroot ${CHRX_INSTALL_ROOT} /bin/bash -c "grub-install --boot-directory=/boot ${CHRX_TARGET_DISK} --force" 2>/dev/null || {
     echo_warn "GRUB installation failed. You may need to install it manually."
     return
@@ -473,7 +460,7 @@ install_grub()
       echo_warn "GRUB config generation failed. You may need to configure it manually."
     }
   fi
-  
+
   echo_info "GRUB installation complete."
 }
 
@@ -577,31 +564,27 @@ EOHELP
 main()
 {
   parse_opts "$@"
-  
+
   show_welcome_banner
-  
+
   # Detect which mode to run in
   detect_mode
-  
+
   if [ "$CHRX_MODE" = "partition" ]; then
-    # Mode 1: Partitioning
-    if [ -z "$CHRX_ROOTFS_SIZE_GB" ]; then
-      show_partition_mode_menu
-    fi
-    # Call the setup_storage function which sources the alternate script
+    # Partition mode: run alternate setup script instead of integrated logic
     setup_storage
   else
     # Mode 2: Installation
     if [ -z "$CHRX_ROOTFS_URL" ]; then
       show_install_mode_menu
     fi
-    
+
     # Validate URL
     validate_url
-    
+
     # Setup storage for installation mode (mount partition etc.)
     setup_storage_install_mode
-    
+
     # Confirm before installing
     cat <<- EOCONFIRM
 
@@ -623,14 +606,14 @@ EOCONFIRM
 
     echo_warn "Press [ENTER] to continue or CTRL+C to abort: \c"
     prompt_if_interactive
-    
+
     # Perform installation
     do_install
-    
+
     # Prompt for reboot
     echo_note "\nPress [ENTER] to reboot: \c"
     prompt_if_interactive
-    
+
     if [ -z "$CHRX_NO_REBOOT" ]; then
       reboot
       sleep 10
