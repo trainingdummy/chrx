@@ -54,9 +54,9 @@ cp chrx-install "$DIST_DIR/bin/chrx"
 chmod +x "$DIST_DIR/bin/chrx"
 
 # Copy repartitioning script
-echo "Copying chrx-install script..."
-cp chrx-setup-storage "$DIST_DIR/bin/chrx"
-chmod +x "$DIST_DIR/bin/chrx"
+echo "Copying chrx-setup-storage script..."
+cp chrx-setup-storage "$DIST_DIR/bin/chrx-setup-storage"
+chmod +x "$DIST_DIR/bin/chrx-setup-storage"
 
 # Copy optional files if they exist
 if [ -f "chrx-devices" ]; then
