@@ -2,10 +2,10 @@
 #
 # chrx-install
 #
-# Chromebook Unix Installer
+# chromebook unix installer (generic fork)
 #
 
-CHRX_VERSION="4.0.4"
+CHRX_VERSION="4.0.0-generic"
 
 # Default configuration
 CHRX_DEFAULT_ROOTFS_URL="https://tinyurl.com/chrx-zorin-17"
@@ -19,7 +19,7 @@ CHRX_TZ="America/New_York"
 CHRX_ROOT_PASSWORD=""
 
 CHRX_CACHE_DIR="/var/cache/chrx"
-CHRX_INSTALL_ROOT="/tmp/chrxroot"
+CHRX_INSTALL_ROOT="/mnt/stateful_partition/chrxroot"
 
 VERBOSITY=""
 VERBOSITY_CURL="-#"
@@ -104,8 +104,16 @@ detect_mode()
     local part7="${rootdev}7"
   fi
   
+  # Check if partition 7 exists AND has a filesystem
   if [ -b "$part7" ]; then
-    CHRX_MODE="install"
+    # Check if it has a valid filesystem (ext4 with CHRX-ROOT label)
+    local fs_label=$(blkid -s LABEL -o value "$part7" 2>/dev/null)
+    if [ "$fs_label" = "CHRX-ROOT" ]; then
+      CHRX_MODE="install"
+    else
+      CHRX_MODE="partition"
+      echo_warn "Partition 7 exists but appears incomplete. Will recreate it."
+    fi
   else
     CHRX_MODE="partition"
   fi
@@ -117,8 +125,8 @@ show_welcome_banner()
 ${ANSI_GRN}
 ╔═══════════════════════════════════════════════════════════════╗
 ║                                                               ║
-║        chrx - Generic Chromebook Linux Installer               ║
-║                    Version ${CHRX_VERSION}                       ║
+║        chrx - Generic Chromebook Linux Installer             ║
+║                    Version ${CHRX_VERSION}                   ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
 ${ANSI_RST}
@@ -131,7 +139,7 @@ show_partition_mode_menu()
   cat <<- EOMENU
 
 ${ANSI_YEL}═══════════════════════════════════════════════════════════════${ANSI_RST}
-${ANSI_YEL}                    PARTITION MODE                             ${ANSI_RST}
+${ANSI_YEL}                    PARTITION MODE                            ${ANSI_RST}
 ${ANSI_YEL}═══════════════════════════════════════════════════════════════${ANSI_RST}
 
 This is your first time running chrx. We need to create a partition
@@ -172,7 +180,7 @@ show_install_mode_menu()
   cat <<- EOMENU
 
 ${ANSI_GRN}═══════════════════════════════════════════════════════════════${ANSI_RST}
-${ANSI_GRN}                    INSTALLATION MODE                          ${ANSI_RST}
+${ANSI_GRN}                    INSTALLATION MODE                         ${ANSI_RST}
 ${ANSI_GRN}═══════════════════════════════════════════════════════════════${ANSI_RST}
 
 Partition detected! Ready to install Linux.
@@ -303,7 +311,7 @@ setup_storage_partition_mode()
   cat <<- EOMSG
 
 ${ANSI_GRN}═══════════════════════════════════════════════════════════════${ANSI_RST}
-${ANSI_GRN}              Partitioning Complete!                           ${ANSI_RST}
+${ANSI_GRN}              Partitioning Complete!                          ${ANSI_RST}
 ${ANSI_GRN}═══════════════════════════════════════════════════════════════${ANSI_RST}
 
 Partition ${CHRX_ROOT_PARTITION} has been created and formatted.
@@ -523,7 +531,7 @@ show_completion_banner()
 ${ANSI_GRN}
 ╔═══════════════════════════════════════════════════════════════╗
 ║                                                               ║
-║              Installation Complete!                           ║
+║              Installation Complete!                          ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
 ${ANSI_RST}
