@@ -84,21 +84,21 @@ downcase() { echo "$@" | tr '[:upper:]' '[:lower:]'; }
 detect_mode()
 {
   # Check if partition 7 exists on the root device
-#  local rootdev=$(rootdev -d -s 2>/dev/null)
+  local rootdev=$(rootdev -d -s 2>/dev/null)
 
-#  if [ -z "$rootdev" ]; then
-#    # Not on ChromeOS, try to detect anyway
-#    if [ -b /dev/mmcblk0 ]; then
-#      rootdev="/dev/mmcblk0"
-#    elif [ -b /dev/nvme0n1 ]; then
-#      rootdev="/dev/nvme0n1"
-#    elif [ -b /dev/sda ]; then
-#      rootdev="/dev/sda"
-#    else
-#      echo_fail "Unable to detect storage device"
-#      exit 1
-#    fi
-#  fi
+  if [ -z "$rootdev" ]; then
+    # Not on ChromeOS, try to detect anyway
+    if [ -b /dev/mmcblk0 ]; then
+      rootdev="/dev/mmcblk0"
+    elif [ -b /dev/nvme0n1 ]; then
+      rootdev="/dev/nvme0n1"
+    elif [ -b /dev/sda ]; then
+      rootdev="/dev/sda"
+    else
+      echo_fail "Unable to detect storage device"
+      exit 1
+    fi
+  fi
 
   # Determine partition naming scheme
   if [[ "${rootdev}" =~ "mmcblk" ]] || [[ "${rootdev}" =~ "nvme" ]]; then
@@ -108,18 +108,18 @@ detect_mode()
   fi
 
   # Check if partition 7 exists AND has a filesystem
-  if [ -b "$part7" ]; then
-    # Check if it has a valid filesystem (ext4 with CHRX-ROOT label)
-    local fs_label=$(blkid -s LABEL -o value "$part7" 2>/dev/null)
-    if [ "$fs_label" = "CHRX-ROOT" ]; then
-      CHRX_MODE="install"
-    else
-      CHRX_MODE="partition"
-      echo_warn "Partition 7 exists but hasn't been adjusted yet. Initiating repartitioning script."
-    fi
-  else
-    CHRX_MODE="partition"
-  fi
+#  if [ -b "$part7" ]; then
+#    # Check if it has a valid filesystem (ext4 with CHRX-ROOT label)
+#    local fs_label=$(blkid -s LABEL -o value "$part7" 2>/dev/null)
+#    if [ "$fs_label" = "CHRX-ROOT" ]; then
+#      CHRX_MODE="install"
+#    else
+#      CHRX_MODE="partition"
+#      echo_warn "Partition 7 exists but hasn't been adjusted yet. Initiating repartitioning script."
+#    fi
+#  else
+#    CHRX_MODE="partition"
+#  fi
 }
 
 show_welcome_banner()
